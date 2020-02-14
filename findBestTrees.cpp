@@ -26,7 +26,7 @@
 using namespace std;
 
 int** getDataMatrix(int n, int m, string fileName);
-double* getErrorRatesArray(double fd, double ad1, double ad2, double cc);
+double** getErrorMatrix(int n, string fileName);
 int readParameters(int argc, char* argv[]);
 string getOutputFilePrefix(string fileName, string outFile);
 string getFileName(string prefix, string ending);
@@ -47,6 +47,7 @@ vector<double> treeMoves;
 double chi = 10;
 double priorSd = 0.1;
 string fileName;      // data file
+string errorFileName; // error rates file
 string outFile;       // the name of the outputfile, only the prefix before the dot
 int n;                // number of genes
 int m;                // number of samples
@@ -86,8 +87,8 @@ int main(int argc, char* argv[])
 	/**  read parameters and data file  **/
 	readParameters(argc, argv);
 	int** dataMatrix = getDataMatrix(n, m, fileName);
-	vector<double> moveProbs = setMoveProbs();
-	double* errorRates = getErrorRatesArray(fd, ad1, ad2, cc);
+	double** errorMatrix = getErrorMatrix(n, errorFileName);
+    vector<double> moveProbs = setMoveProbs();
 
 	/* initialize the random number generator, either with a user defined seed, or a random number */
 		useFixedSeed? srand(fixedSeed) : initRand();
@@ -97,7 +98,7 @@ int main(int argc, char* argv[])
 	if(trueTreeComp==true){ trueParentVec = getParentVectorFromGVfile(trueTreeFileName, n); }
 
 	/**  Find best scoring trees by MCMC  **/
-	sampleOutput = runMCMCbeta(optimalTrees, errorRates, rep, loops, gamma, moveProbs, n, m, dataMatrix, scoreType, trueParentVec, sampleStep, sample, chi, priorSd, useTreeList, treeType);
+	sampleOutput = runMCMCbeta(optimalTrees, errorMatrix, rep, loops, gamma, moveProbs, n, m, dataMatrix, scoreType, trueParentVec, sampleStep, sample, chi, priorSd, useTreeList, treeType);
 
 
 	/***  output results  ***/
@@ -112,7 +113,9 @@ int main(int argc, char* argv[])
 
 	/* output the optimal trees found in individual files */
 
-	double** logScores = getLogScores(fd, ad1, ad2, cc);
+	double*** logScores = getLogScores(
+        errorMatrix[0], errorMatrix[1], errorMatrix[2], errorMatrix[3], n
+    );
 	int parentVectorSize = n;
 	if(treeType=='t'){parentVectorSize = (2*m)-2;}                     // transposed case: binary tree, m leafs and m-1 inner nodes, root has no parent
 	int outputSize = optimalTrees.size();
@@ -130,7 +133,7 @@ int main(int argc, char* argv[])
 		outputFile = getFileName2(i, prefix, ".gv", scoreType);	                                // print out tree as newick code
 
 		if(errorRateMove != 0.0){
-			updateLogScores(logScores, optimalTrees[i].beta);
+			//updateLogScores(logScores, optimalTrees[i].beta);
 		}
 
 		if(treeType == 'm'){
@@ -151,8 +154,8 @@ int main(int argc, char* argv[])
 
 	delete [] logScores[0];
 	delete [] logScores;
-	delete [] errorRates;
 	free_intMatrix(dataMatrix);
+	free_doubleMatrix(errorMatrix);
 	cout << optimalTrees.size() << " opt trees \n";
 	emptyVectorFast(optimalTrees, n);
 
@@ -263,19 +266,21 @@ int readParameters(int argc, char* argv[]){
 			if (i + 1 < argc) { loops = atoi(argv[++i]);}
 		} else if(strcmp(argv[i], "-g")==0) {
 			if (i + 1 < argc) { gamma = atof(argv[++i]);}
-		} else if(strcmp(argv[i], "-fd")==0) {
-			if (i + 1 < argc) { fd = atof(argv[++i]);}
-		} else if(strcmp(argv[i],"-ad")==0) {
-			if (i + 1 < argc) { ad1 = atof(argv[++i]);}
-			if (i + 1 < argc){
-				string next = argv[i+1];
-				if(next.compare(0, 1, "-") != 0){
-					ad2 = atof(argv[++i]);
-				}
-			}
-		} else if(strcmp(argv[i],"-cc")==0) {
-			if (i + 1 < argc) { cc = atof(argv[++i]);}
-		} else if(strcmp(argv[i],"-e")==0) {
+//		} else if(strcmp(argv[i], "-fd")==0) {
+//			if (i + 1 < argc) { fd = atof(argv[++i]);}
+//		} else if(strcmp(argv[i],"-ad")==0) {
+//			if (i + 1 < argc) { ad1 = atof(argv[++i]);}
+//			if (i + 1 < argc){
+//				string next = argv[i+1];
+//				if(next.compare(0, 1, "-") != 0){
+//					ad2 = atof(argv[++i]);
+//				}
+//			}
+//		} else if(strcmp(argv[i],"-cc")==0) {
+//			if (i + 1 < argc) { cc = atof(argv[++i]);}
+        } else if(strcmp(argv[i],"-err")==0) {
+					if (i + 1 < argc) { errorFileName = argv[++i];}
+        } else if(strcmp(argv[i],"-e")==0) {
 					if (i + 1 < argc) { errorRateMove = atof(argv[++i]);}
 		} else if(strcmp(argv[i],"-x")==0) {
 							if (i + 1 < argc) { chi = atof(argv[++i]);}
@@ -386,6 +391,29 @@ int** getDataMatrix(int n, int m, string fileName){
     return transposedMatrix;
 }
 
+double** getErrorMatrix(int n, string fileName){
+    double** errorMatrix = init_doubleMatrix(n, 4, 0.0);
+
+    ifstream in(fileName.c_str());
+
+    if (!in) {
+    	cout << "2 Cannot open file " << fileName << "\n";
+      cout << fileName;
+      cout << "\n";
+      return NULL;
+    }
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < 4; j++) {
+            in >> errorMatrix[i][j];
+        }
+    }
+    double** trErrorMatrix = transposeDoubleMatrix(errorMatrix, n, 4);
+    free_doubleMatrix(errorMatrix);
+   
+    in.close();
+    return trErrorMatrix;
+}
 
 vector<string> getGeneNames(string fileName, int nOrig){
 
@@ -415,15 +443,3 @@ vector<string> getGeneNames(string fileName, int nOrig){
 	v.push_back("Root"); // the root
 	return v;
 }
-
-
-
-double* getErrorRatesArray(double fd, double ad1, double ad2, double cc){
-	double* array = new double[4];
-	array[0] = fd;
-	array[1] = ad1;
-	array[2] = ad2;
-	array[3] = cc;
-	return array;
-}
-

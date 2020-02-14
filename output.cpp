@@ -20,16 +20,16 @@ using namespace std;
 
 /* Score contribution by a specific mutation when placed at the root, that means all samples should have it */
 /* This is the same for all trees and can be precomputed */
-double binTreeRootScore(int** obsMutProfiles, int mut, int m, double ** logScores){
+double binTreeRootScore(int** obsMutProfiles, int mut, int m, double *** logScores){
 	double score = 0.0;
 	for(int sample=0; sample<m; sample++){
-		score += logScores[obsMutProfiles[sample][mut]][1];
+		score += logScores[mut][obsMutProfiles[sample][mut]][1];
 	}
 	return score;
 }
 
 /* computes the best placement of a mutation, the highest one if multiple co-opt. placements exist*/
-int getHighestOptPlacement(int** obsMutProfiles, int mut, int m, double ** logScores, bool** ancMatrix){
+int getHighestOptPlacement(int** obsMutProfiles, int mut, int m, double *** logScores, bool** ancMatrix){
 
 	int nodeCount = (2*m)-1;
 	int bestPlacement = (2*m)-2;   // root
@@ -42,10 +42,10 @@ int getHighestOptPlacement(int** obsMutProfiles, int mut, int m, double ** logSc
 		for(int sample=0; sample<m; sample++){
 			//cout << p << " " << sample << "\n";
 			if(ancMatrix[p][sample] == 1){
-				score += logScores[obsMutProfiles[sample][mut]][1]; // sample should have the mutation
+				score += logScores[mut][obsMutProfiles[sample][mut]][1]; // sample should have the mutation
 			}
 			else{
-				score += logScores[obsMutProfiles[sample][mut]][0]; // sample should not have the mutation
+				score += logScores[mut][obsMutProfiles[sample][mut]][0]; // sample should not have the mutation
 			}
 		}
 		if(score > bestPlacementScore){
@@ -66,7 +66,7 @@ int getHighestOptPlacement(int** obsMutProfiles, int mut, int m, double ** logSc
 }
 
 /* computes the best placement of a mutation, the highest one if multiple co-opt. placements exist*/
-int* getHighestOptPlacementVector(int** obsMutProfiles, int n, int m, double ** logScores, bool** ancMatrix){
+int* getHighestOptPlacementVector(int** obsMutProfiles, int n, int m, double *** logScores, bool** ancMatrix){
 	int* bestPlacements = init_intArray(n, -1);
 	for(int mut=0; mut<n; mut++){                                                               // for all mutations get
 		bestPlacements[mut] = getHighestOptPlacement(obsMutProfiles, mut, m, logScores, ancMatrix);         // bestPlacementScore
@@ -215,7 +215,7 @@ std::string getGraphVizFileContentNumbers(int* parents, int n){
 
 
 /* creates the content for the GraphViz file from a parent vector, using the gene names as node labels */
-std::string getGraphVizFileContentNames(int* parents, int n, vector<string> geneNames, bool attachSamples, bool** ancMatrix, int m, double** logScores, int** dataMatrix){
+std::string getGraphVizFileContentNames(int* parents, int n, vector<string> geneNames, bool attachSamples, bool** ancMatrix, int m, double*** logScores, int** dataMatrix){
 	std::stringstream content;
 	content << "digraph G {\n";
 	content << "node [color=deeppink4, style=filled, fontcolor=white];\n";
@@ -235,7 +235,7 @@ std::string getGraphVizFileContentNames(int* parents, int n, vector<string> gene
 }
 
 /* creates the attachment string for the samples, the optimal attachment points are recomputed from scratch based on error log Scores */
-std::string getBestAttachmentString(bool ** ancMatrix, int n, int m, double** logScores, int** dataMatrix, vector<string> geneNames){
+std::string getBestAttachmentString(bool ** ancMatrix, int n, int m, double*** logScores, int** dataMatrix, vector<string> geneNames){
 	bool** matrix = attachmentPoints(ancMatrix, n, m, logScores, dataMatrix);
 	std::stringstream a;
 	for(int i=0; i<=n; i++){
@@ -250,19 +250,19 @@ std::string getBestAttachmentString(bool ** ancMatrix, int n, int m, double** lo
 
 /* This is a re-computation of the best attachment points of the samples to a tree for printing the tree with attachment points */
 /*   gets an ancestor matrix and returns a bit matrix indicating the best attachment points of each sample based on the error log scores */
-bool** attachmentPoints(bool ** ancMatrix, int n, int m, double** logScores, int** dataMatrix){
+bool** attachmentPoints(bool ** ancMatrix, int n, int m, double*** logScores, int** dataMatrix){
 
     double treeScore = 0.0;
     bool ** attachment = init_boolMatrix(n+1, m, false);
   	for(int sample=0; sample<m; sample++){       // foreach sample
   		double bestAttachmentScore = 0.0;     // currently best score for attaching sample
   		for(int gene=0; gene<n; gene++){   // start with attaching node to root (no genes mutated)
-  			bestAttachmentScore += logScores[dataMatrix[sample][gene]][0];
+  			bestAttachmentScore += logScores[gene][dataMatrix[sample][gene]][0];
   		}
   		for(int parent=0; parent<n; parent++){      // try all attachment points (genes)
   		    double attachmentScore=0.0;
   		    for(int gene=0; gene<n; gene++){     // sum up scores for each gene, score for zero if gene is not an ancestor of parent, score for one else wise
-  		    	attachmentScore += logScores[dataMatrix[sample][gene]][ancMatrix[gene][parent]];
+  		    	attachmentScore += logScores[gene][dataMatrix[sample][gene]][ancMatrix[gene][parent]];
   		    }
   		    if(attachmentScore > bestAttachmentScore){
   		        bestAttachmentScore = attachmentScore;
@@ -271,7 +271,7 @@ bool** attachmentPoints(bool ** ancMatrix, int n, int m, double** logScores, int
   		for(int parent=0; parent<n; parent++){      // try all attachment points (genes)
   		 	double attachmentScore=0.0;
   		 	for(int gene=0; gene<n; gene++){     // sum up scores for each gene, score for zero if gene is not an ancestor of parent, score for one else wise
-  		 		attachmentScore += logScores[dataMatrix[sample][gene]][ancMatrix[gene][parent]];
+  		 		attachmentScore += logScores[gene][dataMatrix[sample][gene]][ancMatrix[gene][parent]];
   		 	}
   		  	if(attachmentScore == bestAttachmentScore){
   		  		attachment[parent][sample] = true;
@@ -331,7 +331,7 @@ void printSampleTrees(vector<int*> list, int n, string fileName){
 }
 
 /* prints the score of the tree predicted by the Kim&Simon approach for the given error log scores */
-void printScoreKimSimonTree(int n, int m, double** logScores, int** dataMatrix, char scoreType){
+void printScoreKimSimonTree(int n, int m, double*** logScores, int** dataMatrix, char scoreType){
 	int parent[] = {2, 4, 17, 2, 9, 9, 2, 2, 4, 18, 2, 1, 2, 2, 9, 2, 2, 11};
 	double KimSimonScore = scoreTree(n, m, logScores, dataMatrix, scoreType, parent, -DBL_MAX);
 	cout.precision(20);

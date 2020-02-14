@@ -48,6 +48,16 @@ int ** transposeMatrix(int** matrix, int n, int m){
 	return transposed;
 }
 
+double ** transposeDoubleMatrix(double** matrix, int n, int m){
+	double ** transposed = allocate_doubleMatrix(m, n);
+	for(int i=0; i<m; i++){
+		for(int j=0; j<n;j++){
+			transposed[i][j] = matrix[j][i];
+		}
+	}
+	return transposed;
+}
+
 void addToMatrix(int** first, int** second, int n, int m){
 	for(int i=0; i<n; i++){
 		for(int j=0; j<m; j++){
@@ -82,6 +92,7 @@ int* ancMatrixToParVector(bool** anc, int n){
 }
 
 /*   allocation  */
+
 double** allocate_doubleMatrix(int n, int m){
 
     double** matrix = new double*[n];
@@ -92,6 +103,17 @@ double** allocate_doubleMatrix(int n, int m){
     }
     return matrix;
 }
+
+double*** allocate_double3DMatrix(int n, int m, int p) {
+    double*** arr = new double **[n]();
+    for (int i = 0; i < n; i++){
+        arr[i] = new double *[m]();
+        for (int j = 0; j < m; j++) {
+            arr[i][j] = new double[p]();            
+        }
+    }
+}
+
 
 int** allocate_intMatrix(int n, int m){
 
@@ -155,6 +177,25 @@ double** init_doubleMatrix(int n, int m, double value){
     }
     return matrix;
 }
+
+
+double*** init_double3DMatrix(int n, int m, int p, double value){
+    
+    double*** matrix = allocate_double3DMatrix(n, m, p);     // allocate
+
+    for (int i=0; i<n; ++i)             // initialize
+    {
+        for (int j=0; j<m; ++j)
+        {
+            for (int k=0; k<p; ++k)
+            {
+                matrix[i][j][k] = value;
+            }
+        }
+    }
+    return matrix;
+}
+
 
 int** init_intMatrix(int n, int m, int value){
 
@@ -223,6 +264,11 @@ void free_doubleMatrix(double** matrix){
     delete [] matrix;
 }
 
+void free_double3DMatrix(double*** matrix){
+    delete [] matrix[0];
+    delete [] matrix;
+}
+
 
 /*  deep copying  */
 
@@ -258,6 +304,18 @@ double** deepCopy_doubleMatrix(double** matrix, int n, int m){
         {
     	      deepCopy[i][j] = matrix[i][j];
 	      }
+    }
+    return deepCopy;
+}
+
+double*** deepCopy_double3DMatrix(double*** matrix, int n, int m, int p){
+    double*** deepCopy = init_double3DMatrix(n,m,p, -1);
+    for (int i=0; i<n; i++)
+    {
+        for (int j=0; j<m; j++)
+        {
+            for (int k=0; j<p; k++) deepCopy[i][j][k] = matrix[i][j][k];
+	    }
     }
     return deepCopy;
 }
